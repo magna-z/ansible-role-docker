@@ -1,0 +1,4 @@
+---
+- name: restart service docker
+  ansible.builtin.include_tasks:
+    file: tasks/restart.yml

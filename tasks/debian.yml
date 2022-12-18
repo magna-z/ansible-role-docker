@@ -1,0 +1,26 @@
+---
+- name: remove deprecated packages
+  ansible.builtin.apt:
+    name: [containerd, docker, docker-engine, docker.io, runc]
+    state: absent
+
+- name: ensure apt over http requirements
+  ansible.builtin.apt:
+    update_cache: true
+    install_recommends: false
+    name: [apt-transport-https, ca-certificates, gnupg]
+
+- name: ensure docker engine apt key
+  ansible.builtin.apt_key:
+    url: https://download.docker.com/linux/debian/gpg
+
+- name: ensure docker engine apt repository
+  ansible.builtin.apt_repository:
+    filename: docker
+    repo: "deb [arch=amd64] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+
+- name: ensure docker engine
+  ansible.builtin.apt:
+    update_cache: true
+    install_recommends: false
+    name: [docker-ce, docker-ce-cli, containerd.io]

@@ -1,0 +1,63 @@
+---
+- name: collect facts
+  ansible.builtin.setup:
+    gather_subset: distribution
+
+- name: ensure docker on debian
+  ansible.builtin.include_tasks:
+    file: debian.yml
+
+- name: ensure drop-in directories
+  ansible.builtin.file:
+    state: directory
+    path: /etc/systemd/system/docker.service.d
+    owner: root
+    group: root
+    mode: 0755
+
+- name: ensure drop-in /etc/systemd/system/docker.service.d/10-docker-args.conf
+  notify: restart service docker
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/10-docker-args.conf
+    owner: root
+    group: root
+    mode: 0644
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/bin/dockerd --host=fd:// --containerd=/run/containerd/containerd.sock --log-driver=none --exec-opt native.cgroupdriver=systemd --experimental --metrics-addr=0.0.0.0:9323{% if docker_network_manage_disable %} --iptables=false --ip-forward=false --ip-masq=false{% endif %}
+
+- name: ensure docker config
+  block:
+  - name: ensure config directory
+    ansible.builtin.file:
+      state: directory
+      path: /root/.docker
+  - name: ensure config file
+    ansible.builtin.template:
+      src: config.json.j2
+      dest: /root/.docker/config.json
+  when:
+  - docker_dockerhub_username is defined
+  - docker_dockerhub_password is defined
+
+- name: absent deprecated module "docker-py"
+  ansible.builtin.pip:
+    executable: pip3
+    name: docker-py
+    state: absent
+
+- name: ensure pip3 modules
+  ansible.builtin.pip:
+    executable: pip3
+    name: [six, docker]
+
+- name: execute handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: ensure docker internal network
+  community.docker.docker_network:
+    name: "{{ docker_internal_network }}"
+  when:
+  - not docker_network_manage_disable
+  - docker_internal_network is defined

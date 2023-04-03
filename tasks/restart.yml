@@ -7,7 +7,7 @@
 - name: skipping 'restart service docker'
   ansible.builtin.debug:
     msg: "Skipping 'restart service docker'! {{ docker_host.containers | length }} running containers on {{ ansible_host }}."
-  when: not (dockerd_force_restart | bool) and (docker_host.containers | length > 0)
+  when: not (docker_daemon_force_restart | bool) and (docker_host.containers | length > 0)
 
 - name: restart service docker
   ansible.builtin.systemd:
@@ -15,4 +15,4 @@
     daemon_reload: true
     enabled: true
     state: restarted
-  when: (dockerd_force_restart | bool) or (docker_host.containers | length == 0 and not dockerd_force_restart)
+  when: (docker_daemon_force_restart | bool) or (docker_host.containers | length == 0 and not docker_daemon_force_restart)

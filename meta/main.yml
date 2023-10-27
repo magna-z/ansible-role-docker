@@ -1,10 +1,9 @@
 ---
 dependencies: []
 galaxy_info:
-  description: Install and configure Docker Engine
+  description: Install and configure Docker Engine.
   author: Maxim Zalysin
   license: MIT
-  min_ansible_version: "2.14"
   platforms:
     - name: Debian
       version: [any]

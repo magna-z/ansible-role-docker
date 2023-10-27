@@ -1,25 +1,45 @@
 ---
+- name: check mandatory variables
+  ansible.builtin.assert:
+    that:
+      - docker_apt_repository is defined
+      - docker_apt_repository.repo_url is defined
+      - docker_apt_repository.key_url is defined or docker_apt_repository.key_id is defined
+    quiet: true
+
 - name: collect facts
   ansible.builtin.setup:
-    gather_subset: distribution
+    gather_subset: distribution_release
 
-- name: ensure docker on debian
+- name: ensure docker on debian / ubuntu
   ansible.builtin.include_tasks:
-    file: debian.yml
-  when: ansible_distribution == 'Debian'
+    file: install_deb.yml
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
-- name: ensure docker on ubuntu
-  ansible.builtin.include_tasks:
-    file: ubuntu.yml
-  when: ansible_distribution == 'Ubuntu'
+- name: ensure daemon config directory
+  ansible.builtin.file:
+    state: directory
+    path: /etc/docker
+    owner: root
+    group: root
+    mode: "0755"
 
-- name: ensure drop-in directories
+- name: ensure daemon config
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {"registry-mirrors":[{%- for item in docker_registry_mirrors %} "{{ item }}" {% endfor -%}]}
+
+- name: ensure drop-in directory
   ansible.builtin.file:
     state: directory
     path: /etc/systemd/system/docker.service.d
     owner: root
     group: root
-    mode: 0755
+    mode: "0755"
 
 - name: ensure drop-in /etc/systemd/system/docker.service.d/10-docker-args.conf
   notify: restart service docker
@@ -27,43 +47,32 @@
     dest: /etc/systemd/system/docker.service.d/10-docker-args.conf
     owner: root
     group: root
-    mode: 0644
+    mode: "0644"
     content: |
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/dockerd --host=fd:// --containerd=/run/containerd/containerd.sock --exec-opt native.cgroupdriver=systemd --experimental --metrics-addr=0.0.0.0:9323{% if docker_network_manage_disable %} --iptables=false --ip-forward=false --ip-masq=false{% endif %}
-
-- name: ensure docker config
-  block:
-    - name: ensure config directory
-      ansible.builtin.file:
-        state: directory
-        path: /root/.docker
-    - name: ensure config file
-      ansible.builtin.template:
-        src: config.json.j2
-        dest: /root/.docker/config.json
-  when:
-    - docker_dockerhub_username is defined
-    - docker_dockerhub_password is defined
-
-- name: absent deprecated module "docker-py"
-  ansible.builtin.pip:
-    executable: pip3
-    name: docker-py
-    state: absent
-
-- name: ensure pip3 modules
-  ansible.builtin.pip:
-    executable: pip3
-    name: [six, docker]
+      ExecStart=/usr/bin/dockerd --host=fd:// --containerd=/run/containerd/containerd.sock --exec-opt native.cgroupdriver=systemd --experimental --metrics-addr=0.0.0.0:9323{% if not docker_network_manage %} --iptables=false --ip-forward=false --ip-masq=false{% endif %}
 
 - name: execute handlers
   ansible.builtin.meta: flush_handlers
+
+- name: start service docker
+  ansible.builtin.systemd:
+    name: docker
+    daemon_reload: true
+    enabled: true
+    state: started
 
 - name: ensure docker internal network
   community.docker.docker_network:
     name: "{{ docker_internal_network }}"
   when:
-    - not docker_network_manage_disable
-    - docker_internal_network is defined
+    - docker_network_manage
+    - docker_internal_network | length > 0
+
+- name: ensure registry credentials
+  community.docker.docker_login:
+    registry_url: "{{ item.registry }}"
+    username: "{{ item.username }}"
+    password: "{{ item.password }}"
+  loop: "{{ docker_registry_credentials }}"

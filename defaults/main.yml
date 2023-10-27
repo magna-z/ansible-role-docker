@@ -1,4 +1,8 @@
 ---
-docker_network_manage_disable: false
+docker_network_manage: true
+docker_internal_network: ""
+
+docker_registry_mirrors: []
+docker_registry_credentials: []
 
 docker_daemon_force_restart: false

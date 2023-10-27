@@ -1,6 +1,6 @@
 ---
 - name: collect docker containers count
-  community.general.docker_host_info:
+  community.docker.docker_host_info:
     containers: true
   register: docker_host
 
